@@ -21,9 +21,7 @@
 #include <linux/usb.h>
 #include <linux/version.h>
 
-#include "hid-ids.h"
-#include "usbhid/usbhid.h"
-
+#define USB_VENDOR_ID_LOGITECH                    0x046d
 #define USB_DEVICE_ID_LOGITECH_KEYBOARD_G710_PLUS 0xc24d
 
 // 20 seeconds timeout
