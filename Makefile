@@ -15,13 +15,13 @@ MODPROBE_FILE := $(MODULE_NAME).conf
 obj-m := $(OBJECT_FILE) # TODO: check if needed
 
 build:
-	make -C $(KDIR) M=$(PWD) modules_build
+	make -C $(KDIR) M=$(PWD) modules
 
 install:
 	make -C $(KDIR) M=$(PWD) modules_install
 
 clean:
-	make -C $(KDIR) M=$(PWD) modules_clean
+	make -C $(KDIR) M=$(PWD) clean
 
 aliases_build:
 	modinfo $(MODULE_INSTALL_DIR)/$(MODULE_FILE) &>/dev/null
