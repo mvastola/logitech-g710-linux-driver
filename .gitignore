@@ -5,3 +5,4 @@
 .tmp_versions
 modules.order
 Module.symvers
+/hid-lg-g710-plus.conf
