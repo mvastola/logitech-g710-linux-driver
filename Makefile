@@ -1,62 +1,63 @@
-.NOTPARALLEL:
-.DEFAULT: build
-KVERSION = $(shell uname -r)
+.DEFAULT: all
+.PHONY: all
+PACKAGE_NAME = hid-lg-g710-plus
+PACKAGE_VERSION = 0.1.1
+
+KVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KVERSION)/build
 PWD := $(shell pwd)
 BUILD_PATH := /lib/modules/$(KVERSION)/updates/dkms
+PACKAGE = $(PACKAGE_NAME)-$(PACKAGE_VERSION)
+DKMS_MODULES_NAME = $(PACKAGE_NAME)
+DKMS_MODULES = $(DKMS_MODULES_NAME)/$(PACKAGE_VERSION)
 
 MODPROBE_INSTALL_DIR := /lib/modprobe.d
 
-MODULE_NAME ?= $(module)
-OBJECT_FILE := $(MODULE_NAME).o
-MODULE_FILE := $(OBJECT_FILE:.o=.ko)
-MODPROBE_FILE := $(MODULE_NAME).conf
+OBJECT_FILE 	= $(DKMS_MODULES_NAME).o
+MODULE_FILE 	= $(DKMS_MODULES_NAME).ko
+MODPROBE_FILE = $(DKMS_MODULES_NAME).conf
 
-obj-m := $(OBJECT_FILE)
+obj-m += $(OBJECT_FILE)
 
-build:
-	make -C $(KDIR) M=$(PWD) modules
-	modinfo -0 -F alias $(BUILD_PATH)/$(MODULE_FILE) 2>&1 | \
-		xargs -0 -r -n1 -i echo "alias {} $(MODULE_NAME)" > \
-			$(PWD)/$(MODPROBE_FILE)
 
-install:
-	make -C $(KDIR) M=$(PWD) modules_install
+modules modules_install clean: 
+	$(MAKE) -C $(KDIR) M=$(PWD) $@
+
+modules_uninstall: 
+	rm -vf $(BUILD_PATH)/$(MODULE_FILE)
+
+$(MODPROBE_FILE): modules
+	modinfo -0 -F alias $(MODULE_FILE) | xargs -0 -n1 -i echo "alias {} $(DKMS_MODULES_NAME)" > $(MODPROBE_FILE)
+
+files_install: $(MODPROBE_FILE)
 	install -m 644 -t $(MODPROBE_INSTALL_DIR) $(PWD)/$(MODPROBE_FILE)
+	depmod -a
 
-clean:
-	make -C $(KDIR) M=$(PWD) clean
-	rm -vf $(PWD)/$(MODPROBE_FILE)
+files_uninstall:
+	rm -vf $(MODPROBE_INSTALL_DIR)/$(MODPROBE_FILE)
+	depmod -a
+	udevadm control --reload
 
-uninstall: 
-	rm -f $(MODPROBE_INSTALL_DIR)/$(MODPROBE_FILE)
+activate: modules_install files_install
+	modprobe hid-lg-g710-plus
+	udevadm control --reload
+	$(PWD)/contrib/reload-g710-driver.sh
+	udevadm control --reload
 
-remove_devs:
-	udevadm control -R && udevadm settle
-	modinfo -0 -F alias $(MODULE_NAME) 2>/dev/null | xargs -0 -r -n1 -i \
-		udevadm trigger -v -t devices -c remove -p "HID_UNIQ=?MODALIAS={}"
-	udevadm settle
-	modinfo -0 -F alias $(MODULE_NAME) 2>/dev/null | xargs -0 -r -n1 -i \
-		udevadm trigger -v -t devices -c remove -p "MODALIAS={}"
-	udevadm settle
-	sleep 10
-
-probe_devs:
+deactivate: files_uninstall
+	rmmod -f  hid-lg-g710-plus || true
 	touch /sys/bus/hid/drivers_probe
-	udevadm control -R && udevadm settle
+	udevadm control --reload
 
-rmmod:
-	!(lsmod | grep -qx $(MODULE_NAME) ) || rmmod -f $(MODULE_NAME)
-#	udevadm control -R && udevadm settle
+install: modules_install files_install 
 
-modprobe:
-	modprobe -a $(MODULE_NAME)
-#	udevadm control -R && udevadm settle
-  
-depmod:
-	depmod -a $(KVERSION)
+uninstall: modules_uninstall files_uninstall deactivate
 
-post_install: rmmod depmod remove_devs modprobe probe_devs
+dkms_install: 
+	dkms add .
+	dkms build $(DKMS_MODULES)
+	dkms install $(DKMS_MODULES)
 
-post_remove: uninstall rmmod remove_devs probe_devs
+dkms_uninstall: 
+	dkms remove $(DKMS_MODULES) --all
 
